@@ -1,0 +1,53 @@
+# SystemVerilog Simulation Build Artifacts
+
+# VCS (Synopsys)
+simv*
+csrc/
+*.daidir/
+*.vpd
+*.vcd
+ucli.key
+
+# QuestaSim/ModelSim (Mentor Graphics)  
+work/
+*.wlf
+transcript
+vsim.wlf
+*.vstf
+
+# Xcelium (Cadence)
+xcelium.d/
+*.shm/
+*.trn
+*.dsn
+*.history
+
+# General simulation files
+*.log
+*.fsdb
+*.diag
+*.conf
+*.rc
+
+# Coverage files
+*.vdb/
+urgReport/
+*.cov
+
+# Debug files
+*.debug
+*.debug.*
+
+# Temporary files
+*.tmp
+*.swp
+*~
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db

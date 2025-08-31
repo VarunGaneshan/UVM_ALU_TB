@@ -1,130 +1,237 @@
-class alu_driver extends uvm_driver #(alu_sequence_item);
-  `uvm_component_utils(alu_driver)
-  alu_sequence_item drv_trans;
-  virtual alu_if vif;
-  uvm_event drv2mon_ev;
+module alu_design #(parameter DW = 8, CW = 4)(INP_VALID,OPA,OPB,CIN,CLK,RST,CMD,CE,MODE,COUT,OFLOW,RES,G,E,L,ERR);
+ 
+  input [DW-1:0] OPA,OPB;
+  input CLK,RST,CE,MODE,CIN;
+  input [CW-1:0] CMD;
+  input [1:0] INP_VALID;
+  output reg [DW:0] RES = 9'bz; 
+  output reg COUT = 1'bz;
+  output reg OFLOW = 1'bz;
+  output reg G = 1'bz;
+  output reg E = 1'bz;
+  output reg L = 1'bz;
+  output reg ERR = 1'bz;
 
-  uvm_analysis_port #(alu_sequence_item) drv_port;
-
-
-  function new(string name="alu_driver",uvm_component parent=null);
-    super.new(name,parent);
-    drv_port = new("drv_port", this);
-  endfunction
-
-  function void build_phase(uvm_phase phase);
-    super.build_phase(phase);
-    if(!uvm_config_db#(virtual alu_if)::get(this,"","vif",vif)) begin
-      `uvm_fatal("NOVIF","No virtual interface found")
-    end
-    // Retrieve event handle from global event pool
-    drv2mon_ev = uvm_event_pool::get_global("drv2mon_ev");
-  endfunction
-
-  virtual task run_phase(uvm_phase phase);
-    super.run_phase(phase);
-    forever begin
-      seq_item_port.get_next_item(drv_trans);
-      drive();
-      seq_item_port.item_done();
-    end
-  endtask
-
-
-
-  // Function to get delay cycles based on command and mode
-  function int get_delay_cycles;
-    input [`CMD_WIDTH-1:0] cmd;
-    input mode;
-    begin
-      if (mode && (cmd == `INC_MUL || cmd == `SHL_MUL))
-        get_delay_cycles = 4;
-      else
-        get_delay_cycles = 3;
-    end
-  endfunction
-
-  // Function to check if command is two operand
-  function bit is_two_op;
-    input [`CMD_WIDTH-1:0] c;
-    input m;
-    begin
-      if (m == 1)
-        is_two_op = (c == `ADD || c == `SUB || c == `ADD_CIN || c == `SUB_CIN || c == `CMP || c == `INC_MUL || c == `SHL_MUL);
-      else
-        is_two_op = (c == `AND || c == `NAND || c == `OR || c == `NOR || c == `XOR || c == `XNOR || c == `ROL || c == `ROR);
-    end
-  endfunction
-
-  task drive_dut();
-    vif.drv_cb.ce <= drv_trans.ce;
-    vif.drv_cb.inp_valid <= drv_trans.inp_valid;
-    vif.drv_cb.mode <= drv_trans.mode;
-    vif.drv_cb.cmd <= drv_trans.cmd;
-    vif.drv_cb.cin <= drv_trans.cin;
-    vif.drv_cb.opa <= drv_trans.opa;
-    vif.drv_cb.opb <= drv_trans.opb;
-  endtask
-
-  // Task to trigger monitor after appropriate delay
-  task trigger_monitor();
-    int delay_cycles;
-    delay_cycles = get_delay_cycles(drv_trans.cmd, drv_trans.mode);
-    repeat(delay_cycles) @(vif.drv_cb);
-  drv2mon_ev.trigger();
-  $display("[%0t] DRIVER: Triggered monitor after %0d cycles", $time, delay_cycles);
-  endtask
-
-  task drive();
-    int retry_count;
-    bit valid_match; 
-        // Enable randomization for cmd and mode initially
-        drv_trans.rand_mode(1);
-        if(is_two_op(drv_trans.cmd, drv_trans.mode)) begin
-            $display("[%0t] DRIVER: Transaction - Two operand operation detected", $time);
-            if(drv_trans.inp_valid == 2'b11) begin
-                    $display("[%0t] DRIVER: Correct inp_valid found on transaction", $time);
-                    drive_dut();
-                    trigger_monitor();
-            end else begin
-                valid_match = 0;
-                for(retry_count = 0; retry_count < 16; retry_count++) begin
-                    if(drv_trans.inp_valid == 2'b11) begin
-                        $display("[%0t] DRIVER: Correct inp_valid found on retry %0d", $time, retry_count);
-                        drive_dut();
-                        trigger_monitor();
-                        valid_match = 1;
-                        break;
-                    end else begin
-                        $display("[%0t] DRIVER: Incorrect inp_valid=%b, driving DUT", $time, drv_trans.inp_valid);
-                        drive_dut();                    
-                        // Wait one cycle before next retry
-                        repeat(1) @(vif.drv_cb);
-                    end
-                    // Disable randomization for cmd and mode after first iteration
-                    drv_trans.cmd.rand_mode(0);
-                    drv_trans.mode.rand_mode(0);  
-                    // Re-randomize only inp_valid, opa, opb, cin, ce
-                    if(!drv_trans.randomize()) begin
-                        $display("[%0t] DRIVER: Randomization failed for retry %0d", $time, retry_count);
-                    end
-                  
-                end
-                // If all 16 retries failed, move to next transaction
-                if(!valid_match) begin
-                      $display("[%0t] DRIVER: All 16 retries failed for transaction, moving to next", $time);
-                      // trigger monitor for the last attempt to capture error
-                      trigger_monitor();
-                end
-            end
-            
-        end else begin
-            // Single operand operation - drive normally
-            $display("[%0t] DRIVER: Transaction - Single operand operation", $time);
-            drive_dut();
-            trigger_monitor();
+  reg [DW-1:0] OPA_1, OPB_1;
+  reg [DW-1:0] oprd1, oprd2;
+  reg [3:0] CMD_tmp;
+  reg [DW-1:0] AU_out_tmp1,AU_out_tmp2 ;
+  // Added timer and state tracking
+  reg [4:0] wait_counter;
+  reg oprd1_valid, oprd2_valid;
+  
+  always @ (posedge CLK) begin
+      if(RST) begin
+        oprd1<=0;
+        oprd2<=0;
+        CMD_tmp<=0;
+        wait_counter<=0;
+        oprd1_valid<=0;
+        oprd2_valid<=0;
+      end
+      else if (INP_VALID==2'b01)  begin    
+        oprd1<=OPA;
+        CMD_tmp<=CMD;
+        oprd1_valid<=1;
+        wait_counter<=0;
+        // Set error if second operand comes after 16 cycles
+        if(oprd2_valid && wait_counter >= 16) begin
+          ERR <= 1'b1;
         end
-    drv_trans.print();
-    drv_port.write(drv_trans);
-  endtask
-endclass
+      end
+      else if (INP_VALID==2'b10)  begin    
+        oprd2<=OPB;
+        CMD_tmp<=CMD;
+        oprd2_valid<=1;
+        wait_counter<=0;
+        // Set error if second operand comes after 16 cycles
+        if(oprd1_valid && wait_counter >= 16) begin
+          ERR <= 1'b1;
+        end
+      end
+      else if (INP_VALID==2'b11)  begin    
+        oprd1<=OPA;
+        oprd2<=OPB;
+        CMD_tmp<=CMD;
+        oprd1_valid<=1;
+        oprd2_valid<=1;
+        wait_counter<=0;
+      end
+      else begin    
+        // Increment wait counter if only one operand is valid
+        if((oprd1_valid && !oprd2_valid) || (!oprd1_valid && oprd2_valid)) begin
+          if(wait_counter < 16) begin
+            wait_counter <= wait_counter + 1;
+          end else begin
+            // Keep operands but stop incrementing counter after 16 cycles
+            wait_counter <= 16;
+          end
+        end
+      end
+    end
+ 
+ 
+    always@(posedge CLK)
+      begin
+       if(CE)                   
+        begin
+         if(RST)                
+          begin
+            RES=9'bzzzzzzzzz;
+            COUT=1'bz;
+            OFLOW=1'bz;
+            G=1'bz;
+            E=1'bz;
+            L=1'bz;
+            ERR=1'bz;
+            AU_out_tmp1=0;
+            AU_out_tmp2=0;
+          end
+         else if(MODE && oprd1_valid && oprd2_valid)          
+         begin
+           RES=9'bzzzzzzzzz;
+           COUT=1'bz;
+           OFLOW=1'bz;
+           G=1'bz;
+           E=1'bz;
+           L=1'bz;
+           ERR=1'bz;
+          case(CMD_tmp)             
+    4'b0000:                   begin             
+              RES=oprd1+oprd2;
+              COUT=RES[8]?1:0;
+            end
+      4'b0001 :                begin
+             OFLOW=(oprd1<oprd2)?1:0;
+             RES=oprd1-oprd2;
+            end
+           4'h2:            
+            begin
+             RES=oprd1+oprd2+CIN;
+             COUT=RES[8]?1:0;
+            end
+           4'b0011:             
+           begin
+            OFLOW=(oprd1<oprd2)?1:0; 
+            RES=oprd1-oprd2-CIN;
+           end
+           4'b0100:RES=oprd1;    
+           4'b0101:RES=oprd1-1;    
+           4'b0110:RES=oprd2-1;    
+           4'b0111:RES=oprd2+1;    
+           4'b1000:              
+           begin
+            RES=9'bzzzzzzzzz;
+            if(oprd1==oprd2)
+             begin
+               E=1'b1;
+               G=1'bz;
+               L=1'bz;
+             end
+            else if(oprd1>oprd2)
+             begin
+               E=1'bz;
+               G=1'b1;
+               L=1'bz;
+             end
+            else 
+             begin
+               E=1'bz;
+               G=1'bz;
+               L=1'b1;
+             end
+           end
+	   4'b1001: begin   
+                    AU_out_tmp1 <= oprd1 + 1;
+                    AU_out_tmp2 <= oprd2 + 1;
+                    RES <=AU_out_tmp1 * AU_out_tmp2;
+                  end
+           4'b1010: begin   
+                    AU_out_tmp1 <= oprd1 << 1;
+                    AU_out_tmp2 <= oprd2;
+                    RES <=AU_out_tmp1 - AU_out_tmp2; 
+                  end
+ 
+           default:   
+            begin
+            RES=9'bzzzzzzzzz;
+            COUT=1'bz;
+            OFLOW=1'bz;
+            G=1'bz;
+            E=1'bz;
+            L=1'bz;
+            ERR=1'bz;
+           end
+          endcase
+         end
+        else if(!MODE && oprd1_valid && oprd2_valid)          
+        begin 
+           RES=9'bzzzzzzzzz;
+           COUT=1'bz;
+           OFLOW=1'bz;
+           G=1'bz;
+           E=1'bz;
+           L=1'bz;
+           ERR=1'bz;
+           case(CMD_tmp)    
+             4'b0000:RES={1'b0,oprd1&oprd2};     
+             4'b0001:RES={1'b0,~(oprd1&oprd2)};  
+             4'b0010:RES={1'b0,oprd1&&oprd2};     
+             4'b0011:RES={1'b0,~(oprd1|oprd2)};  
+             4'b0100:RES={1'b0,oprd1^oprd2};     
+             4'b0101:RES={1'b0,~(oprd1^oprd2)};  
+             4'b0110:RES={1'b0,~oprd1};        
+             4'b0111:RES={1'b0,~oprd2};        
+             4'b1000:RES={1'b0,oprd1};      
+             4'b1001:RES={1'b0,oprd1<<1};      
+             4'b1010:RES={1'b0,oprd2<<1};      
+             4'b1011:RES={1'b0,oprd2<<1};     
+             4'b1100:                        
+             begin
+               if(oprd2[0])
+                 OPA_1 = {oprd1[6:0], oprd1[7]};
+               else
+                 OPA_1 = oprd1;
+               if(oprd2[1])
+                 OPB_1 =  {OPA_1[5:0], OPA_1[7:6]}; 
+               else
+                 OPB_1= OPA_1;
+               if(oprd2[2])
+                 RES =  {OPB_1[3:0], OPB_1[7:4]} ;
+               else
+                 RES = OPB_1;
+               if(oprd2[4] | oprd2[5] | oprd2[6] | oprd2[7])
+                 ERR=1'b1;
+             end
+             4'b1101:                        
+             begin
+               if(oprd2[0])
+                 OPA_1 = {oprd1[0], oprd1[7:1]};
+               else
+                 OPA_1 = oprd1;
+               if(oprd2[1])
+                 OPB_1 =  {OPA_1[1:0], OPA_1[7:2]}; 
+               else
+                 OPB_1= OPA_1;
+               if(oprd2[2])
+                 RES =  {OPB_1[3:0], OPB_1[7:4]} ;
+               else
+                 RES = OPB_1;
+               if(oprd2[4] | oprd2[5] | oprd2[6] | oprd2[7])
+                 ERR=1'b0;
+             end
+             default:   
+               begin
+               RES=9'bzzzzzzzzz;
+               COUT=1'bz;
+               OFLOW=1'bz;
+               G=1'bz;
+               E=1'bz;
+               L=1'bz;
+               ERR=1'bz;
+               end
+          endcase
+     end
+    end
+   end
+endmodule

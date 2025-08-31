@@ -10,7 +10,6 @@ class alu_agent extends uvm_agent;
 
   virtual function void build_phase(uvm_phase phase);
     super.build_phase(phase);
-    //is active
     driver = alu_driver::type_id::create("driver", this);
     monitor = alu_monitor::type_id::create("monitor", this);
     sequencer = alu_sequencer::type_id::create("sequencer", this);

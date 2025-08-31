@@ -1,4 +1,4 @@
-`define no_of_trans 150
+`define no_of_trans 1500
 
 `define OP_WIDTH 8
 `define CMD_WIDTH 4

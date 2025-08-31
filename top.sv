@@ -25,7 +25,6 @@ module top;
   initial begin
     clk = 0;
     rst = 0;
-   //#delay rst=1;
   end
 
   alu_if alu_intf(clk, rst);
@@ -56,7 +55,7 @@ module top;
   initial begin
     run_test("alu_base_test");
     repeat(10) @(posedge clk);
-    $finish;
+    $stop;
   end
   
 endmodule

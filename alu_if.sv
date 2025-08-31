@@ -27,8 +27,10 @@
     //default input #1 output #1;
     input rst;
   endclocking 
-
+  
+/*
   modport DRV(clocking drv_cb);
   modport MON(clocking mon_cb);
   modport REF_SB(clocking ref_cb);
+*/
 endinterface

@@ -22,37 +22,37 @@ class alu_scoreboard extends uvm_scoreboard;
     bit match = 1'b1;
     
     if (expected.res !== actual.res) begin
-      $display("[%0t] SCOREBOARD: Result mismatch - Expected: 0x%h, Actual: 0x%h", $time, expected.res, actual.res);
+      `uvm_info(get_type_name(), $sformatf("[%0t] Result mismatch - Expected: 0x%h, Actual: 0x%h", $time, expected.res, actual.res), UVM_LOW);
       match = 1'b0;
     end
     
     if (expected.cout !== actual.cout) begin
-      $display("[%0t] SCOREBOARD: Carry out mismatch - Expected: %0b, Actual: %0b", $time, expected.cout, actual.cout);
+      `uvm_info(get_type_name(), $sformatf("[%0t] Carry out mismatch - Expected: %0b, Actual: %0b", $time, expected.cout, actual.cout), UVM_LOW);
       match = 1'b0;
     end
     
     if (expected.oflow !== actual.oflow) begin
-      $display("[%0t] SCOREBOARD: Overflow mismatch - Expected: %0b, Actual: %0b", $time, expected.oflow, actual.oflow);
+      `uvm_info(get_type_name(), $sformatf("[%0t] Overflow mismatch - Expected: %0b, Actual: %0b", $time, expected.oflow, actual.oflow), UVM_LOW);
       match = 1'b0;
     end
     
     if (expected.g !== actual.g) begin
-      $display("[%0t] SCOREBOARD: Greater flag mismatch - Expected: %0b, Actual: %0b", $time, expected.g, actual.g);
+      `uvm_info(get_type_name(), $sformatf("[%0t] Greater flag mismatch - Expected: %0b, Actual: %0b", $time, expected.g, actual.g), UVM_LOW);
       match = 1'b0;
     end 
     
     if (expected.l !== actual.l) begin
-      $display("[%0t] SCOREBOARD: Less flag mismatch - Expected: %0b, Actual: %0b", $time, expected.l, actual.l);
+      `uvm_info(get_type_name(), $sformatf("[%0t] Less flag mismatch - Expected: %0b, Actual: %0b", $time, expected.l, actual.l), UVM_LOW);
       match = 1'b0;
     end
 
     if (expected.e !== actual.e) begin
-      $display("[%0t] SCOREBOARD: Equal flag mismatch - Expected: %0b, Actual: %0b", $time, expected.e, actual.e);
+      `uvm_info(get_type_name(), $sformatf("[%0t] Equal flag mismatch - Expected: %0b, Actual: %0b", $time, expected.e, actual.e), UVM_LOW);
       match = 1'b0;
     end    
     
     if (expected.err !== actual.err) begin
-      $display("[%0t] SCOREBOARD: Error flag mismatch - Expected: %0b, Actual: %0b", $time, expected.err, actual.err);
+      `uvm_info(get_type_name(), $sformatf("[%0t] Error flag mismatch - Expected: %0b, Actual: %0b", $time, expected.err, actual.err), UVM_LOW);
       match = 1'b0;
     end
     
@@ -95,11 +95,11 @@ class alu_scoreboard extends uvm_scoreboard;
     t_mode = trans.mode;
     t_cmd = trans.cmd;
     t_ce = trans.ce;  
-    t_rst = 0;  
+    t_rst = 0;  //get through vif
     
     // Check for reset condition - when reset is active, all outputs are 0
     if (t_rst) begin
-      $display("[%0t] REFERENCE MODEL: Reset active - all outputs set to 0", $time);
+      `uvm_info(get_type_name(), $sformatf("[%0t] Reset active - all outputs set to 0", $time), UVM_LOW);
       trans.res = 0;
       trans.cout = 0;
       trans.oflow = 0;
@@ -129,7 +129,7 @@ class alu_scoreboard extends uvm_scoreboard;
     if(t_ce) begin
         if (t_err) begin
           t_res = 0; t_cout = 0; t_oflow = 0; t_g = 0; t_l = 0; t_e = 0;
-          $display("[%0t] REFERENCE MODEL: Error condition detected - err=1", $time);
+          `uvm_info(get_type_name(), $sformatf("[%0t] Error condition detected - err=1", $time), UVM_LOW);
         end
         else if (t_mode) begin
           case (t_cmd)
@@ -191,35 +191,26 @@ class alu_scoreboard extends uvm_scoreboard;
     super.run_phase(phase);
     forever begin
       sb_fifo.get(actual_trans);
-      $display("Actual_trans");
-      actual_trans.print();
       $cast(expected_trans, actual_trans.clone());
-      $display("Expected_trans");
-      expected_trans.print();
       calculate_expected(expected_trans);
       if (compare_transactions(expected_trans, actual_trans)) begin
         passed_transactions++;
-        $display("[%0t] SCOREBOARD: Transaction PASSED - mode=%0b cmd=0x%h opa=0x%h opb=0x%h", $time, expected_trans.mode, expected_trans.cmd, expected_trans.opa, expected_trans.opb);
+        `uvm_info(get_type_name(), $sformatf("[%0t] Transaction PASSED - mode=%0b cmd=0x%h opa=0x%h opb=0x%h", $time, expected_trans.mode, expected_trans.cmd, expected_trans.opa, expected_trans.opb), UVM_LOW);
       end else begin
         failed_transactions++;
-        $display("[%0t] SCOREBOARD: Transaction FAILED", $time);
-        $display("  Input: mode=%0b cmd=0x%h inp_valid=%0b cin=%0b opa=0x%h opb=0x%h", expected_trans.mode, expected_trans.cmd, expected_trans.inp_valid, expected_trans.cin, expected_trans.opa, expected_trans.opb);
-        $display("  Expected: res=0x%h cout=%0b oflow=%0b g=%0b l=%0b e=%0b err=%0b", expected_trans.res, expected_trans.cout, expected_trans.oflow, expected_trans.g, expected_trans.l, expected_trans.e, expected_trans.err);
-        $display("  Actual:   res=0x%h cout=%0b oflow=%0b g=%0b l=%0b e=%0b err=%0b", actual_trans.res, actual_trans.cout, actual_trans.oflow, actual_trans.g, actual_trans.l, actual_trans.e, actual_trans.err);
+        `uvm_info(get_type_name(), $sformatf("[%0t] Transaction FAILED", $time), UVM_LOW);
+        `uvm_info(get_type_name(), $sformatf("  Input: mode=%0b cmd=0x%h inp_valid=%0b cin=%0b opa=0x%h opb=0x%h", expected_trans.mode, expected_trans.cmd, expected_trans.inp_valid, expected_trans.cin, expected_trans.opa, expected_trans.opb), UVM_LOW);
+        `uvm_info(get_type_name(), $sformatf("  Expected: res=0x%h cout=%0b oflow=%0b g=%0b l=%0b e=%0b err=%0b", expected_trans.res, expected_trans.cout, expected_trans.oflow, expected_trans.g, expected_trans.l, expected_trans.e, expected_trans.err), UVM_LOW);
+        `uvm_info(get_type_name(), $sformatf("  Actual:   res=0x%h cout=%0b oflow=%0b g=%0b l=%0b e=%0b err=%0b", actual_trans.res, actual_trans.cout, actual_trans.oflow, actual_trans.g, actual_trans.l, actual_trans.e, actual_trans.err), UVM_LOW);
       end
     end
   endtask
 
   virtual function void report_phase(uvm_phase phase);
     super.report_phase(phase);
-    $display("SCOREBOARD: Total Transactions: %0d", passed_transactions + failed_transactions);
-    $display("SCOREBOARD: Passed Transactions: %0d", passed_transactions);
-    $display("SCOREBOARD: Failed Transactions: %0d", failed_transactions);
-    if (failed_transactions > 0) begin
-      `uvm_error("SCOREBOARD", "Some transactions failed, check logs for details");
-    end else begin
-      `uvm_info("SCOREBOARD", "All transactions passed successfully", UVM_LOW);
-    end
+    `uvm_info(get_type_name(), $sformatf("Total Transactions: %0d", passed_transactions + failed_transactions), UVM_LOW);
+    `uvm_info(get_type_name(), $sformatf("Passed Transactions: %0d", passed_transactions), UVM_LOW);
+    `uvm_info(get_type_name(), $sformatf("Failed Transactions: %0d", failed_transactions), UVM_LOW);
   endfunction
 endclass
 

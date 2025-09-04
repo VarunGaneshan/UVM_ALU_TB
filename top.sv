@@ -53,10 +53,11 @@ module top;
   end
 
   initial begin
-    run_test("alu_base_test");
+    run_test("alu_reg_test");
     repeat(10) @(posedge clk);
     $stop;
   end
   
 endmodule
+
 

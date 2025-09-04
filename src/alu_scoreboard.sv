@@ -1,7 +1,8 @@
 class alu_scoreboard extends uvm_scoreboard;
   `uvm_component_utils(alu_scoreboard)
   alu_sequence_item expected_trans, actual_trans;
-  
+  virtual alu_if vif;
+
   int passed_transactions;
   int failed_transactions;
 
@@ -16,6 +17,9 @@ class alu_scoreboard extends uvm_scoreboard;
 
   virtual function void build_phase(uvm_phase phase);
     super.build_phase(phase);
+    if(!uvm_config_db#(virtual alu_if)::get(this,"","vif",vif)) begin
+      `uvm_fatal("NOVIF","No virtual interface found")
+    end
   endfunction
 
   function bit compare_transactions(alu_sequence_item expected, alu_sequence_item actual);
@@ -95,10 +99,9 @@ class alu_scoreboard extends uvm_scoreboard;
     t_mode = trans.mode;
     t_cmd = trans.cmd;
     t_ce = trans.ce;  
-    t_rst = 0;  //get through vif
     
     // Check for reset condition - when reset is active, all outputs are 0
-    if (t_rst) begin
+    if (vif.rst) begin
       `uvm_info(get_type_name(), $sformatf("[%0t] Reset active - all outputs set to 0", $time), UVM_LOW);
       trans.res = 0;
       trans.cout = 0;

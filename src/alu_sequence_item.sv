@@ -33,46 +33,10 @@ class alu_sequence_item extends uvm_sequence_item;
     super.new(name);
   endfunction
 
-  constraint ce_c {
-    ce dist {1 := 98, 0 := 2}; // Clock enable mostly active
+  constraint values{
+    soft 
+    opa==1;
+    opb==1;
+    ce==1;
   }
-
-  constraint mode_c {
-    mode dist {0 := 50, 1 := 50}; // Equal distribution between arithmetic and logical in base test
-  }  
-  
-  constraint cin_c {
-    cin dist {0 := 75, 1 := 25}; // Carry in occasionally
-  }
-
-  // Constraint for valid commands based on mode
-  constraint cmd_mode_c {
-    if (mode == 1) {
-      cmd inside {`ADD, `SUB, `ADD_CIN, `SUB_CIN, `INC_A, `DEC_A, `INC_B, `DEC_B, `CMP, `INC_MUL, `SHL_MUL};
-    } else {
-      cmd inside {`AND, `NAND, `OR, `NOR, `XOR, `XNOR, `NOT_A, `NOT_B, `SHR1_A, `SHL1_A, `SHR1_B, `SHL1_B, `ROL, `ROR};
-    }
-  }
-  
-  // Input valid constraints based on command
-  constraint inp_valid_c { 
-     if (mode == 1) {
-      if (cmd == `INC_A || cmd == `DEC_A) {
-        inp_valid == 2'b01;
-      } else if (cmd == `INC_B || cmd == `DEC_B) {
-        inp_valid == 2'b10;
-      } else {
-        inp_valid == 2'b11;
-      }
-    } else { // mode == 0
-      if (cmd == `NOT_A || cmd == `SHL1_A || cmd == `SHR1_A) {
-        inp_valid == 2'b01;
-      } else if (cmd == `NOT_B || cmd == `SHL1_B || cmd == `SHR1_B) {
-        inp_valid == 2'b10;
-      } else {
-        inp_valid == 2'b11;
-      }
-    }
-  }
-
 endclass
